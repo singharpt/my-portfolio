@@ -1,13 +1,32 @@
 import Head from "next/head";
-import { Inter } from "next/font/google";
+import { Content, Inter } from "next/font/google";
 import styles from "@/styles/Home.module.css";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import Typewriter from "typewriter-effect";
+import { useState } from "react";
+import axios from "axios";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export default function Home() {
+  const [email, setEmail] = useState("");
+
+  const submitEmail = async () => {
+    const payload = { email };
+    try {
+      const { data } = await axios({
+        url: "https://008s4sp52i.execute-api.us-east-1.amazonaws.com/dev",
+        method: "POST",
+        data: payload,
+      });
+      console.log(data);
+    } catch (error) {
+      console.log(error);
+    }
+    setEmail("");
+  };
+
   return (
     <>
       <Head>
@@ -37,6 +56,8 @@ export default function Home() {
             color="secondary"
             label="Email"
             placeholder="abc@xyz.com"
+            value={email}
+            onChange={({ target }) => setEmail(target?.value)}
           >
             Email
           </TextField>
@@ -46,6 +67,7 @@ export default function Home() {
             className={styles.button}
             variant="contained"
             color="secondary"
+            onClick={submitEmail}
           >
             Hit Go
           </Button>
