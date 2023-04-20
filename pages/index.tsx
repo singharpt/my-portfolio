@@ -5,21 +5,23 @@ import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import Typewriter from "typewriter-effect";
 import { useState } from "react";
-import axios from "axios";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export default function Home() {
   const [email, setEmail] = useState("");
 
   const submitEmail = async () => {
-    const payload = { email };
     try {
-      const { data } = await axios({
-        url: "https://008s4sp52i.execute-api.us-east-1.amazonaws.com/dev",
-        method: "POST",
-        data: payload,
-      });
+      const response = await fetch(
+        "https://3jpfa37nd7.execute-api.us-east-1.amazonaws.com/dev",
+        {
+          method: "POST",
+          body: JSON.stringify({ email }),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      const data = await response.json();
       console.log(data);
     } catch (error) {
       console.log(error);
