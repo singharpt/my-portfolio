@@ -12,7 +12,7 @@ export default function Home() {
   const submitEmail = async () => {
     try {
       const response = await fetch(
-        "https://3jpfa37nd7.execute-api.us-east-1.amazonaws.com/dev",
+        "https://74mshflwtg.execute-api.us-east-1.amazonaws.com/dev",
         {
           method: "POST",
           body: JSON.stringify({ email }),
