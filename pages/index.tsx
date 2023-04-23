@@ -15,7 +15,7 @@ export default function Home() {
         "https://74mshflwtg.execute-api.us-east-1.amazonaws.com/dev",
         {
           method: "POST",
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email: email }),
           headers: {
             "Content-Type": "application/json",
           },
