@@ -1,0 +1,127 @@
+import json
+import boto3
+from botocore.exceptions import ClientError
+from datetime import datetime
+import os
+import mimetypes
+import base64
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email.mime.text import MIMEText
+from email import encoders
+import re
+
+def checkEmailValidity(email):
+   pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b'
+   if re.fullmatch(pattern,email):
+      return True
+   return False
+
+def create_message_with_attachment(sender_email, recipient_email, subject, body, file_path):
+    # Create a MIME multipart message
+    message = MIMEMultipart()
+    message['From'] = sender_email
+    message['To'] = recipient_email
+    message['Subject'] = subject
+    
+    # Add the body of the email
+    message.attach(MIMEText(body))
+    
+    # Add the attachment to the email
+    attachment = open(file_path, 'rb')
+    mime_type, _ = mimetypes.guess_type(file_path)
+    if mime_type is None:
+        mime_type = 'application/octet-stream'
+    main_type, sub_type = mime_type.split('/', 1)
+    part = MIMEBase(main_type, sub_type)
+    part.set_payload(attachment.read())
+    attachment.close()
+    encoders.encode_base64(part)
+    part.add_header('Content-Disposition', 'attachment', filename=os.path.basename(file_path))
+    message.attach(part)
+    
+    # Convert the message to a string and return it
+    return message.as_string()
+    
+def send_email(sender_email, recipient_email, message, region):
+    # Create an AWS SES client
+    ses = boto3.client('ses', region_name=region)
+    
+    # Send the email
+    try:
+        response = ses.send_raw_email(
+            Source=sender_email,
+            Destinations=[recipient_email],
+            RawMessage={'Data': message}
+        )
+    except ClientError as e:
+        return(e.response['Error']['Message'])
+        raise e
+    else:
+        return("Email sent!")
+        
+def lambda_handler(event, context):
+    
+    # objects to access s3 bucket & dynamodb
+    s3 = boto3.resource('s3')
+    dynamodb = boto3.client('dynamodb') 
+    
+    #email address that came from the body of the post API
+    email = event['email']
+    
+    if (checkEmailValidity(email)):
+    
+        #data variables to used to send the email to the user
+        sender_email = 'arpit.singh.09.19@gmail.com'
+        recipient_email = email
+        region = os.environ.get('AWS_REGION')
+        subject = 'Here is your requested resume of Arpit Singh'
+        body = 'Hi,\n\nThank you for requesting my resume. Please check the attached pdf.\n\nSincerely,\nArpit Singh'
+        bucket_name = 'portfolio-data-dump'
+        object_key = 'Arpit_Singh_resume.pdf'
+        
+        
+        # Retrieve the PDF file from the S3 bucket
+        bucket = s3.Bucket(bucket_name)
+        object = bucket.Object(object_key)
+        file_path = '/tmp/' + object_key.split('/')[-1]
+        object.download_file(file_path)
+        
+        # Create a MIME multipart message
+        message = create_message_with_attachment(sender_email, recipient_email, subject, body, file_path)
+        
+        # Send the message using AWS SES
+        send_email_response = send_email(sender_email, recipient_email, message, region)
+        print(send_email_response)
+        
+        # If the email was sent successfully add reuqestor's data to db'
+        if (send_email_response == "Email sent!"):
+            #below 2 lines written total items present inside the target table of dynamo db
+            total_items = dynamodb.scan(TableName='portfolio-client-data', Select='COUNT')
+            total_items = total_items['Count']
+            print(total_items)
+            
+            #This line would store the client's data in the dynamodb table
+            dynamodb.put_item(TableName='portfolio-client-data', Item={'clientId':{'S':str(total_items+1)}, 'Request Email':{'S':email},'Request DateTime':{'S':str(datetime.now().strftime("%m/%d/%Y, %H:%M:%S"))}})
+        
+        #Return point for the post API that is triggered from the front-end
+        return {
+            'status': 200,
+            'headers': {
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'OPTIONS,POST,GET'
+            },
+            'body': json.dumps('Email received by AWS successfully.')
+        }
+        
+    #Return error saying that wrong email was sent
+    return {
+        'status': 400,
+        'headers': {
+            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'OPTIONS,POST,GET'
+        },
+        'body': json.dumps('The email provided is not of correct format.')
+    }
